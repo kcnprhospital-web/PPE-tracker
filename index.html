@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PPE Supply Continuity Tracker · KCPH · CHAS IPI.10 ME5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;600;700&family=Noto+Sans:wght@400;500;600&family=Noto+Sans+Khmer:wght@400;500;600&display=swap" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#eef2f1; --surface:#ffffff; --surface-2:#f6f9f8;
+    --ink:#12302c; --muted:#5c6d69; --faint:#8a9a96;
+    --primary:#0f766e; --primary-dark:#0b5850; --primary-tint:#e6f2f0;
+    --line:#dde6e4; --line-strong:#c6d4d1;
+    --green:#15803d; --green-bg:#e7f6ec;
+    --amber:#b45309; --amber-bg:#fdf1de;
+    --red:#b91c1c; --red-bg:#fbe9e9;
+    --purple:#6d28d9; --purple-bg:#efe9fb;
+    --radius:14px; --shadow:0 1px 2px rgba(18,48,44,.06),0 6px 20px rgba(18,48,44,.06);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:"Noto Sans","Noto Sans Khmer",system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    font-size:15px; line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .km{font-family:"Noto Sans Khmer",sans-serif}
+  h1,h2,h3,.display{font-family:"Sora","Noto Sans Khmer",sans-serif;letter-spacing:-.01em}
+  a{color:var(--primary)}
+  .wrap{max-width:1180px;margin:0 auto;padding:0 18px}
+
+  /* Header */
+  header{background:linear-gradient(180deg,var(--primary-dark),var(--primary));color:#eafcf8}
+  .head{display:flex;align-items:center;gap:16px;padding:16px 0}
+  .emblem{flex:0 0 auto;width:52px;height:52px;border-radius:12px;background:rgba(255,255,255,.14);
+    display:grid;place-items:center;border:1px solid rgba(255,255,255,.25)}
+  .emblem svg{width:30px;height:30px}
+  .head h1{font-size:19px;margin:0;color:#fff;font-weight:700}
+  .head .sub{font-size:12.5px;color:#c8efe8;margin-top:2px}
+  .head .km{font-size:13px;color:#dcfff9}
+  .badge-standard{margin-left:auto;text-align:right;font-size:11.5px;color:#bff0e7;line-height:1.4}
+  .badge-standard b{display:block;color:#fff;font-size:12.5px;font-weight:600}
+
+  /* Tabs */
+  nav.tabs{background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  .tabs .wrap{display:flex;gap:2px;overflow-x:auto}
+  .tab{appearance:none;border:0;background:none;padding:14px 16px;font-size:14px;font-weight:600;
+    color:var(--muted);cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit}
+  .tab:hover{color:var(--ink)}
+  .tab.active{color:var(--primary-dark);border-bottom-color:var(--primary)}
+  .tab .k{font-family:"Noto Sans Khmer";font-weight:500;font-size:11px;color:var(--faint);display:block}
+  .tab.active .k{color:var(--primary)}
+
+  main{padding:22px 0 60px}
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .25s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .card-pad{padding:20px}
+  .card + .card{margin-top:18px}
+  .card-title{font-size:16px;font-weight:700;margin:0 0 3px}
+  .card-title .k{font-family:"Noto Sans Khmer";font-weight:500;font-size:12.5px;color:var(--muted);display:block;margin-top:1px}
+  .card-hint{color:var(--muted);font-size:13px;margin:0 0 16px}
+
+  /* Intent banner */
+  .intent{background:var(--primary-tint);border:1px solid #cfe6e2;border-radius:var(--radius);padding:16px 18px;margin-bottom:18px}
+  .intent .eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--primary-dark)}
+  .intent p{margin:6px 0 0;font-size:13.5px;color:#204a45}
+  .intent .me5{font-weight:600;color:var(--ink)}
+
+  /* Forms */
+  .grid{display:grid;gap:14px}
+  .grid.c2{grid-template-columns:1fr 1fr}
+  .grid.c3{grid-template-columns:1fr 1fr 1fr}
+  .grid.c4{grid-template-columns:repeat(4,1fr)}
+  label.field{display:block;font-size:12.5px}
+  label.field .lab{display:block;font-weight:600;margin-bottom:5px;color:var(--ink)}
+  label.field .lab .k{font-family:"Noto Sans Khmer";font-weight:400;color:var(--muted);font-size:11.5px;margin-left:4px}
+  input,select,textarea{width:100%;padding:9px 11px;border:1px solid var(--line-strong);border-radius:9px;
+    font-size:14px;font-family:inherit;color:var(--ink);background:#fff}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--primary-tint);border-color:var(--primary)}
+  textarea{resize:vertical;min-height:60px}
+  .req::after{content:" *";color:var(--red)}
+
+  /* Item builder rows */
+  .items-head,.item-row{display:grid;grid-template-columns:2.2fr .9fr .9fr .9fr 1.1fr .8fr 40px;gap:8px;align-items:end}
+  .items-head{padding:0 2px 6px;font-size:11px;font-weight:700;color:var(--faint);text-transform:uppercase;letter-spacing:.04em}
+  .items-head span:nth-child(6){text-align:center}
+  .item-row{padding:8px;border:1px solid var(--line);border-radius:11px;margin-bottom:8px;background:var(--surface-2)}
+  .item-row .itemname{font-weight:600;font-size:13px}
+  .item-row .itemname .k{display:block;font-family:"Noto Sans Khmer";font-weight:400;color:var(--muted);font-size:11px}
+  .item-row .cell{display:flex;flex-direction:column;justify-content:flex-end;min-width:0}
+  .item-row .cell .cap{display:none}
+  .item-row .cell .capk{font-family:"Noto Sans Khmer";font-weight:400;color:var(--faint)}
+  .item-row .cell.correct{align-items:center;justify-content:flex-end}
+  .item-row .center{display:grid;place-items:center}
+  .chk{width:20px;height:20px;accent-color:var(--primary)}
+  .del-row{appearance:none;border:1px solid var(--line-strong);background:#fff;color:var(--red);
+    width:34px;height:34px;border-radius:8px;cursor:pointer;font-size:16px;line-height:1}
+  .del-row:hover{background:var(--red-bg)}
+  .row-status{grid-column:1/-1;font-size:11.5px;color:var(--muted);padding:2px 2px 0}
+
+  /* Buttons */
+  .btn{appearance:none;border:0;border-radius:10px;padding:10px 18px;font-size:14px;font-weight:600;
+    font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+  .btn-primary{background:var(--primary);color:#fff}
+  .btn-primary:hover{background:var(--primary-dark)}
+  .btn-ghost{background:#fff;color:var(--primary-dark);border:1px solid var(--line-strong)}
+  .btn-ghost:hover{background:var(--surface-2)}
+  .btn-sm{padding:7px 12px;font-size:12.5px;border-radius:8px}
+  .btn[disabled]{opacity:.55;cursor:not-allowed}
+  .actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:6px}
+
+  /* KPIs */
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:18px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+  .kpi .n{font-family:"Sora";font-size:26px;font-weight:700;line-height:1}
+  .kpi .l{font-size:11.5px;color:var(--muted);margin-top:6px;font-weight:600}
+  .kpi.good .n{color:var(--green)} .kpi.warn .n{color:var(--amber)}
+  .kpi.bad .n{color:var(--red)} .kpi.info .n{color:var(--primary-dark)}
+  .kpi.purple .n{color:var(--purple)}
+
+  /* ME5 coverage board — the signature */
+  .board{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .dom{border:1px solid var(--line);border-radius:12px;overflow:hidden;background:var(--surface)}
+  .dom-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px}
+  .dom-head .dot{width:10px;height:10px;border-radius:50%}
+  .dom-head h3{margin:0;font-size:14px}
+  .dom-head h3 .k{display:block;font-family:"Noto Sans Khmer";font-weight:400;font-size:11px;color:var(--muted)}
+  .dom-verdict{margin-left:auto;font-size:11px;font-weight:700;padding:3px 8px;border-radius:20px}
+  .dom-body{padding:8px 10px 12px}
+  .cov-item{display:flex;align-items:center;gap:9px;padding:7px 6px;border-radius:8px;font-size:13px}
+  .cov-item:hover{background:var(--surface-2)}
+  .cov-item .nm{flex:1;min-width:0}
+  .cov-item .nm b{font-weight:600}
+  .cov-item .nm .k{font-family:"Noto Sans Khmer";color:var(--faint);font-size:10.5px}
+  .pill{font-size:10.5px;font-weight:700;padding:3px 8px;border-radius:20px;white-space:nowrap}
+  .pill.green{background:var(--green-bg);color:var(--green)}
+  .pill.amber{background:var(--amber-bg);color:var(--amber)}
+  .pill.red{background:var(--red-bg);color:var(--red)}
+  .pill.grey{background:#eef1f0;color:var(--faint)}
+
+  /* Tables */
+  .tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:12px}
+  table{border-collapse:collapse;width:100%;font-size:13px;background:#fff}
+  th,td{padding:9px 11px;text-align:left;border-bottom:1px solid var(--line);white-space:nowrap}
+  th{background:var(--surface-2);font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:var(--muted);font-weight:700;position:sticky;top:0}
+  tbody tr:hover{background:var(--surface-2)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums}
+  .st{font-size:11px;font-weight:700;padding:2px 8px;border-radius:20px;display:inline-block}
+  .st.Adequate{background:var(--green-bg);color:var(--green)}
+  .st.Low{background:var(--amber-bg);color:var(--amber)}
+  .st.Stockout{background:var(--red-bg);color:var(--red)}
+  .rowbtn{border:1px solid var(--line-strong);background:#fff;border-radius:7px;padding:4px 9px;font-size:12px;cursor:pointer;color:var(--muted)}
+  .rowbtn:hover{color:var(--ink);background:var(--surface-2)}
+  .rowbtn.danger:hover{color:var(--red);background:var(--red-bg)}
+
+  .filters{display:flex;gap:10px;flex-wrap:wrap;align-items:end;margin-bottom:14px}
+  .filters label.field{flex:1;min-width:130px}
+
+  .empty{text-align:center;padding:40px 20px;color:var(--faint)}
+  .empty svg{width:40px;height:40px;opacity:.4;margin-bottom:8px}
+
+  /* Toast + status */
+  #toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(120%);
+    background:var(--ink);color:#fff;padding:12px 20px;border-radius:10px;font-size:13.5px;
+    box-shadow:var(--shadow);transition:transform .3s;z-index:80;max-width:92vw}
+  #toast.show{transform:translateX(-50%) translateY(0)}
+  #toast.err{background:var(--red)} #toast.ok{background:var(--green)}
+  .conn{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+  .conn .d{width:8px;height:8px;border-radius:50%;background:var(--faint)}
+  .conn.online .d{background:var(--green)} .conn.offline .d{background:var(--amber)}
+  .outbox-note{font-size:11.5px;color:var(--amber);margin-top:4px}
+
+  .divider{height:1px;background:var(--line);margin:18px 0}
+  .muted{color:var(--muted)}
+  .small{font-size:12px}
+  details.ref{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-top:14px}
+  details.ref summary{padding:14px 18px;cursor:pointer;font-weight:600;list-style:none}
+  details.ref summary::-webkit-details-marker{display:none}
+  details.ref[open] summary{border-bottom:1px solid var(--line)}
+  details.ref .rbody{padding:16px 18px;font-size:13.5px}
+  .me-list{margin:8px 0 0;padding-left:20px}
+  .me-list li{margin-bottom:6px}
+  .me-list li.hl{font-weight:600;color:var(--primary-dark)}
+
+  @media (max-width:900px){
+    .kpis{grid-template-columns:repeat(3,1fr)}
+    .board{grid-template-columns:1fr}
+    .grid.c4,.grid.c3{grid-template-columns:1fr 1fr}
+    .items-head{display:none}
+    .item-row{grid-template-columns:1fr 1fr;gap:14px 12px;padding:14px}
+    .item-row .itemname{grid-column:1/-1;margin-bottom:-2px;font-size:14px}
+    .item-row .cell .cap{display:block;font-size:11px;font-weight:700;color:var(--muted);
+      margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;line-height:1.25}
+    .item-row .cell.correct{flex-direction:row;align-items:center;justify-content:flex-start;gap:10px}
+    .item-row .cell.correct .cap{margin-bottom:0}
+    .item-row .cell.correct .chk{width:24px;height:24px}
+    .item-row .del-row{align-self:end;justify-self:end;width:100%;max-width:120px}
+    .item-row .del-row::after{content:" Remove";font-size:13px}
+    .badge-standard{display:none}
+  }
+  @media (max-width:560px){
+    .kpis{grid-template-columns:1fr 1fr}
+    .grid.c2,.grid.c3,.grid.c4{grid-template-columns:1fr}
+  }
+
+  /* Print / surveyor report */
+  @media print{
+    header,nav.tabs,.actions,.filters,.no-print,#toast{display:none !important}
+    body{background:#fff}
+    .panel{display:none !important}
+    #print-report{display:block !important}
+    .card{box-shadow:none;border:1px solid #ccc;break-inside:avoid}
+  }
+  #print-report{display:none}
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap head">
+    <div class="emblem" title="KCPH">
+      <svg viewBox="0 0 24 24" fill="none" stroke="#eafcf8" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 21s-7-4.35-9.5-8.5C.8 9.6 2 6 5.2 6 7 6 8.2 7 9 8c.8-1 2-2 3.8-2C16 6 17.2 9.6 15.5 12.5 13 16.65 12 17 12 21z" opacity=".0"/>
+        <path d="M12 3.5 4 7v5c0 4.2 3.2 7.5 8 8.5 4.8-1 8-4.3 8-8.5V7z"/>
+        <path d="M12 8.5v6M9 11.5h6"/>
+      </svg>
+    </div>
+    <div>
+      <h1>PPE Supply Continuity Tracker</h1>
+      <div class="sub">Kampong Chhnang Provincial Hospital · Infection Prevention &amp; Control</div>
+      <div class="km">ការតាមដានការផ្គត់ផ្គង់ PPE ជាបន្តបន្ទាប់ · មន្ទីរពេទ្យខេត្តកំពង់ឆ្នាំង</div>
+    </div>
+    <div class="badge-standard">
+      <b>CHAS IPI.10 · ME5</b>
+      Continuity of PPE supply<br/>Clinical · Waste · Cleaning
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <div class="wrap">
+    <button class="tab active" data-tab="check">Record stock check<span class="k">កត់ត្រាការត្រួតពិនិត្យស្តុក</span></button>
+    <button class="tab" data-tab="dash">Continuity dashboard<span class="k">ផ្ទាំងគ្រប់គ្រង</span></button>
+    <button class="tab" data-tab="records">Records<span class="k">កំណត់ត្រា</span></button>
+    <button class="tab" data-tab="about">About this standard<span class="k">អំពីស្តង់ដារ</span></button>
+  </div>
+</nav>
+
+<main class="wrap">
+
+  <!-- ============ TAB 1: STOCK CHECK ============ -->
+  <section class="panel active" id="tab-check">
+    <div class="intent">
+      <span class="eyebrow">Measurable Element 5 — what this log proves</span>
+      <p><span class="me5">"There is a continuous supply of the correct kind of PPE for both clinical care and health-care waste handling and cleaning."</span> Log each periodic stock check at the point of use so continuity — and any break — is documented over time.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">Monitoring session<span class="k">វគ្គត្រួតពិនិត្យ</span></h2>
+        <p class="card-hint">Set the details once, then enter the current stock for each PPE item at this point of use.</p>
+
+        <div class="grid c4">
+          <label class="field"><span class="lab req">Check date<span class="k">កាលបរិច្ឆេទ</span></span>
+            <input type="date" id="f-date" /></label>
+          <label class="field"><span class="lab req">Point of use / Department<span class="k">ទីតាំង/ផ្នែក</span></span>
+            <select id="f-loc"></select></label>
+          <label class="field"><span class="lab req">Use category<span class="k">ប្រភេទប្រើប្រាស់</span></span>
+            <select id="f-cat">
+              <option value="Clinical">Clinical care · ការថែទាំគ្លីនិក</option>
+              <option value="Waste">Waste handling · ការចាត់ចែងសំណល់</option>
+              <option value="Cleaning">Cleaning · ការសម្អាត</option>
+            </select></label>
+          <label class="field"><span class="lab req">Recorded by<span class="k">អ្នកកត់ត្រា</span></span>
+            <input type="text" id="f-by" placeholder="IPC focal point name" /></label>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="items-head">
+          <span>PPE item · សម្ភារ</span>
+          <span>Current stock</span>
+          <span>Received</span>
+          <span>Min level</span>
+          <span>Avg daily use</span>
+          <span>Correct kind</span>
+          <span></span>
+        </div>
+        <div id="item-rows"></div>
+
+        <div class="actions no-print">
+          <button class="btn btn-ghost btn-sm" id="add-item">+ Add PPE item</button>
+          <button class="btn btn-ghost btn-sm" id="reset-items">Reset to category defaults</button>
+        </div>
+
+        <div class="divider"></div>
+        <label class="field"><span class="lab">Session remark <span class="km muted small">(optional — e.g. reorder placed, supplier delay)</span></span>
+          <textarea id="f-remark" placeholder="Notes for this monitoring session…"></textarea></label>
+
+        <div class="actions" style="margin-top:16px">
+          <button class="btn btn-primary" id="save-session">Save stock check</button>
+          <span class="conn" id="conn"><span class="d"></span><span id="conn-txt">checking…</span></span>
+        </div>
+        <div class="outbox-note" id="outbox-note" style="display:none"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 2: DASHBOARD ============ -->
+  <section class="panel" id="tab-dash">
+    <div class="kpis" id="kpis"></div>
+
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">ME5 continuity board — current status<span class="k">ស្ថានភាពបច្ចុប្បន្នតាមផ្នែកទាំង៣</span></h2>
+        <p class="card-hint">Latest stock status of essential PPE across the three domains named by ME5. All green = continuity currently met.</p>
+        <div class="board" id="board"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">Active shortages<span class="k">ការខ្វះខាតបច្ចុប្បន្ន</span></h2>
+        <p class="card-hint">Points of use whose latest check shows stock at or below the reorder level, or fully out.</p>
+        <div id="active-short"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">Continuity break log<span class="k">កំណត់ត្រាការដាច់ស្តុក</span></h2>
+        <p class="card-hint">Every recorded stockout — the evidence a surveyor looks for that breaks are caught and resolved.</p>
+        <div id="break-log"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">Stock trend<span class="k">និន្នាការស្តុក</span></h2>
+        <p class="card-hint">Track closing balance over time for one item at one point of use.</p>
+        <div class="filters">
+          <label class="field"><span class="lab">Point of use</span><select id="tr-loc"></select></label>
+          <label class="field"><span class="lab">PPE item</span><select id="tr-item"></select></label>
+        </div>
+        <div style="position:relative;height:300px"><canvas id="trend-chart"></canvas></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 3: RECORDS ============ -->
+  <section class="panel" id="tab-records">
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">All stock-check records<span class="k">កំណត់ត្រាទាំងអស់</span></h2>
+        <div class="filters">
+          <label class="field"><span class="lab">Point of use</span><select id="rf-loc"><option value="">All</option></select></label>
+          <label class="field"><span class="lab">Category</span><select id="rf-cat">
+            <option value="">All</option><option value="Clinical">Clinical care</option>
+            <option value="Waste">Waste handling</option><option value="Cleaning">Cleaning</option></select></label>
+          <label class="field"><span class="lab">Status</span><select id="rf-st">
+            <option value="">All</option><option>Adequate</option><option>Low</option><option>Stockout</option></select></label>
+          <label class="field"><span class="lab">From</span><input type="date" id="rf-from" /></label>
+          <label class="field"><span class="lab">To</span><input type="date" id="rf-to" /></label>
+        </div>
+        <div class="actions no-print" style="margin-bottom:14px">
+          <button class="btn btn-ghost btn-sm" id="exp-xlsx">Export Excel</button>
+          <button class="btn btn-ghost btn-sm" id="exp-pdf">Print / PDF report</button>
+          <button class="btn btn-ghost btn-sm" id="refresh">Refresh data</button>
+          <span class="conn" id="conn2"><span class="d"></span><span id="conn-txt2">—</span></span>
+        </div>
+        <div class="tbl-wrap">
+          <table id="rec-table">
+            <thead><tr>
+              <th>Date</th><th>Point of use</th><th>Category</th><th>PPE item</th>
+              <th>Stock</th><th>Min</th><th>Days left</th><th>Status</th><th>Correct kind</th><th>By</th><th></th>
+            </tr></thead>
+            <tbody id="rec-body"></tbody>
+          </table>
+        </div>
+        <p class="small muted" id="rec-count" style="margin-top:10px"></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ TAB 4: ABOUT ============ -->
+  <section class="panel" id="tab-about">
+    <div class="card">
+      <div class="card-pad">
+        <h2 class="card-title">CHAS IPI.10 — Worksite protection of staff from infection<span class="k">ការការពារបុគ្គលិកពីការចម្លងរោគ</span></h2>
+        <p class="card-hint">Classification / Weighting: <b style="color:var(--red)">Critical</b></p>
+        <p style="font-size:13.5px">This tool operationalises <b>Measurable Element 5</b> of standard IPI.10. The five measurable elements are:</p>
+        <ol class="me-list">
+          <li>PPE is used according to the IPC policies and procedures.</li>
+          <li>Supplies for Standard and Transmission-based Precautions (gloves, gowns, mouth/eye/nose/face protection) are available and located near point of use.</li>
+          <li>Healthcare workers wear gloves for procedures where contact with blood, body fluids, mucous membranes, or non-intact skin is anticipated.</li>
+          <li>Gowns are properly worn to prevent contamination during procedures with anticipated contact with blood, body fluids, secretions, or excretions.</li>
+          <li class="hl">There is a continuous supply of the correct kind of PPE for both clinical care and health-care waste handling and cleaning. ← tracked here</li>
+        </ol>
+        <div class="divider"></div>
+        <p style="font-size:13.5px"><b>How this log supports the survey.</b> Surveyors observe availability facility-wide and interview staff on whether PPE is routinely available. This register gives dated, point-of-use evidence that supply has been continuous, shows where the reorder level was reached, and documents that any stockout was identified and resolved.</p>
+        <details class="ref">
+          <summary>Scoring reference · ការដាក់ពិន្ទុ</summary>
+          <div class="rbody">
+            <p><b>Fully met</b> — PPE available and staff observed using it properly.</p>
+            <p><b>Partially met</b> — PPE available but staff not using it properly.</p>
+            <p><b>Not met</b> — PPE not available and staff not using it.</p>
+            <p class="small muted" style="margin-top:10px">Aligned with the KCPH Standard Operating Procedure on PPE use (Technical Office). Status thresholds in this tool: <b>Stockout</b> = 0 in stock; <b>Low</b> = at or below the minimum/reorder level; <b>Adequate</b> = above the reorder level.</p>
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- Print report container -->
+<div id="print-report" class="wrap"></div>
+
+<div id="toast"></div>
+
+<script>
+/* ============================================================
+   CONFIG  — paste your Apps Script /exec URL after deploying
+   ============================================================ */
+const CONFIG = {
+  GAS_URL: 'https://script.google.com/macros/s/AKfycbxZ02eg2JXMsNUHf8CQUOTblsUwk8mD76Xj20Lj_oRtMNJzkFmWi69rJa-lBvBSWiU/exec',
+  HOSPITAL_EN: 'Kampong Chhnang Provincial Hospital',
+  HOSPITAL_KM: 'មន្ទីរពេទ្យខេត្តកំពង់ឆ្នាំង',
+  OUTBOX_KEY: 'kcph_ppe_outbox_v1',
+  CACHE_KEY:  'kcph_ppe_cache_v1'
+};
+
+/* ---------- PPE master list (bilingual, category-tagged) ---------- */
+/* essential:true items appear on the ME5 coverage board for that domain */
+const PPE_ITEMS = [
+  {en:'Examination gloves',        km:'ស្រោមដៃពិនិត្យ',            unit:'boxes',   cats:['Clinical'],                    ess:['Clinical']},
+  {en:'Sterile surgical gloves',   km:'ស្រោមដៃវះកាត់',            unit:'pairs',   cats:['Clinical'],                    ess:['Clinical']},
+  {en:'Heavy-duty utility gloves', km:'ស្រោមដៃកៅស៊ូក្រាស់',        unit:'pairs',   cats:['Waste','Cleaning'],            ess:['Waste','Cleaning']},
+  {en:'Surgical / medical mask',   km:'ម៉ាស់វះកាត់',              unit:'boxes',   cats:['Clinical','Waste','Cleaning'], ess:['Clinical','Waste','Cleaning']},
+  {en:'N95 respirator',            km:'ម៉ាស់ N95',                unit:'pieces',  cats:['Clinical','Waste'],            ess:['Clinical']},
+  {en:'Isolation gown',            km:'អាវអៀមញែក',                unit:'pieces',  cats:['Clinical'],                    ess:['Clinical']},
+  {en:'Plastic apron',             km:'អាវអៀមផ្លាស្ទិច',          unit:'pieces',  cats:['Clinical','Waste','Cleaning'], ess:['Waste','Cleaning']},
+  {en:'Goggles',                   km:'វ៉ែនតាការពារ',              unit:'pieces',  cats:['Clinical','Waste','Cleaning'], ess:['Clinical','Waste']},
+  {en:'Face shield',               km:'របាំងការពារមុខ',            unit:'pieces',  cats:['Clinical','Waste'],            ess:[]},
+  {en:'Head cap',                  km:'មួកគ្របសក់',                unit:'pieces',  cats:['Clinical'],                    ess:[]},
+  {en:'Shoe cover',                km:'ស្រោមស្បែកជើង',            unit:'pairs',   cats:['Clinical'],                    ess:[]},
+  {en:'Rubber boots',              km:'ស្បែកជើងកវែងកៅស៊ូ',        unit:'pairs',   cats:['Waste','Cleaning'],            ess:['Waste','Cleaning']},
+  {en:'Alcohol hand rub',          km:'អាល់កុលលាងដៃ',            unit:'bottles', cats:['Clinical','Waste','Cleaning'], ess:['Clinical']}
+];
+
+const LOCATIONS = [
+  'Emergency (ER)','Outpatient (OPD)','IPD — Medical','IPD — Surgical','Pediatrics',
+  'Maternity / Delivery room','Operating Theatre (OT)','Intensive Care (ICU)','Laboratory',
+  'Blood bank','Pharmacy','Radiology / Imaging','Dental','TB / DOTS','ART / OI clinic',
+  'Sterilization (CSSD)','Laundry','Kitchen','Waste area / Incinerator','Housekeeping store',
+  'Central IPC store'
+];
+
+const CAT_LABEL = {Clinical:'Clinical care', Waste:'Waste handling', Cleaning:'Cleaning'};
+const CAT_KM    = {Clinical:'ការថែទាំគ្លីនិក', Waste:'ការចាត់ចែងសំណល់', Cleaning:'ការសម្អាត'};
+
+/* ---------- tiny helpers ---------- */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+const todayISO = () => new Date().toISOString().slice(0,10);
+const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = v => { const n = parseFloat(v); return isNaN(n)?null:n; };
+
+function statusOf(closing, min){
+  const c = num(closing); const m = num(min)||0;
+  if(c===null) return 'Adequate';
+  if(c<=0) return 'Stockout';
+  if(c<=m) return 'Low';
+  return 'Adequate';
+}
+function daysLeft(closing, adu){
+  const c = num(closing), a = num(adu);
+  if(c===null||!a||a<=0) return '';
+  return Math.floor(c/a);
+}
+function toast(msg, kind){
+  const t=$('#toast'); t.textContent=msg; t.className='show'+(kind?(' '+kind):'');
+  clearTimeout(t._t); t._t=setTimeout(()=>t.className='',3200);
+}
+
+/* ============================================================
+   NETWORK — JSONP only (GET), matching KCPH stack conventions
+   ============================================================ */
+function jsonp(params){
+  return new Promise((resolve,reject)=>{
+    if(!CONFIG.GAS_URL || CONFIG.GAS_URL.startsWith('PASTE_')){
+      reject(new Error('Backend URL not set')); return;
+    }
+    const cb = 'cb_'+uid();
+    const timer = setTimeout(()=>{ cleanup(); reject(new Error('timeout')); }, 20000);
+    function cleanup(){ delete window[cb]; s.remove(); clearTimeout(timer); }
+    window[cb] = data => { cleanup(); resolve(data); };
+    const q = Object.entries(params).map(([k,v])=>encodeURIComponent(k)+'='+encodeURIComponent(v)).join('&');
+    const s = document.createElement('script');
+    s.src = CONFIG.GAS_URL + '?callback='+cb+'&'+q;
+    s.onerror = ()=>{ cleanup(); reject(new Error('network')); };
+    document.body.appendChild(s);
+  });
+}
+
+/* ---------- offline outbox ---------- */
+const Outbox = {
+  all(){ try{ return JSON.parse(localStorage.getItem(CONFIG.OUTBOX_KEY)||'[]'); }catch(e){ return []; } },
+  set(a){ localStorage.setItem(CONFIG.OUTBOX_KEY, JSON.stringify(a)); updateOutboxNote(); },
+  add(rec){ const a=this.all(); a.push(rec); this.set(a); },
+  remove(id){ this.set(this.all().filter(r=>r._localId!==id)); },
+};
+function updateOutboxNote(){
+  const n=Outbox.all().length, el=$('#outbox-note');
+  if(n>0){ el.style.display='block'; el.textContent='⏳ '+n+' record(s) waiting to sync — they will upload automatically when the connection returns.'; }
+  else el.style.display='none';
+}
+async function flushOutbox(){
+  const pending = Outbox.all();
+  if(!pending.length) return;
+  for(const rec of pending){
+    try{
+      const p = Object.assign({action:'create'}, rec); delete p._localId;
+      const res = await jsonp(p);
+      if(res && res.ok){ Outbox.remove(rec._localId); }
+      else break;
+    }catch(e){ break; }
+  }
+  updateOutboxNote();
+}
+
+/* ---------- data cache ---------- */
+let RECORDS = [];
+function loadCache(){ try{ RECORDS = JSON.parse(localStorage.getItem(CONFIG.CACHE_KEY)||'[]'); }catch(e){ RECORDS=[]; } }
+function saveCache(){ localStorage.setItem(CONFIG.CACHE_KEY, JSON.stringify(RECORDS)); }
+
+async function fetchRecords(){
+  setConn('checking');
+  try{
+    const res = await jsonp({action:'list'});
+    if(res && res.ok && Array.isArray(res.records)){
+      RECORDS = res.records; saveCache(); setConn('online');
+      await flushOutbox();
+      return true;
+    }
+    setConn('offline'); return false;
+  }catch(e){ setConn('offline'); return false; }
+}
+function setConn(state){
+  const map={online:['online','Online'],offline:['offline','Offline — cached'],checking:['','Connecting…']};
+  ['#conn','#conn2'].forEach((sel,i)=>{
+    const el=$(sel); if(!el) return;
+    el.className='conn '+(map[state][0]);
+    (i? $('#conn-txt2'):$('#conn-txt')).textContent=map[state][1];
+  });
+}
+
+/* ============================================================
+   TAB 1 — stock-check builder
+   ============================================================ */
+function fillSelect(sel, arr, ph){
+  sel.innerHTML = (ph?`<option value="">${ph}</option>`:'') +
+    arr.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('');
+}
+function itemsForCategory(cat){ return PPE_ITEMS.filter(p=>p.cats.includes(cat)); }
+
+function itemRowHTML(item){
+  const id = uid();
+  return `<div class="item-row" data-row="${id}" data-en="${esc(item.en)}" data-unit="${esc(item.unit)}">
+    <div class="itemname">${esc(item.en)}<span class="k">${esc(item.km)} · ${esc(item.unit)}</span></div>
+    <label class="cell"><span class="cap">Current stock<span class="capk"> ស្តុកបច្ចុប្បន្ន</span></span><input type="number" min="0" step="1" class="r-closing" placeholder="0" /></label>
+    <label class="cell"><span class="cap">Received<span class="capk"> បានទទួល</span></span><input type="number" min="0" step="1" class="r-received" placeholder="0" /></label>
+    <label class="cell"><span class="cap">Min level<span class="capk"> កម្រិតអប្បបរមា</span></span><input type="number" min="0" step="1" class="r-min" placeholder="0" /></label>
+    <label class="cell"><span class="cap">Avg daily use<span class="capk"> ប្រើ/ថ្ងៃ</span></span><input type="number" min="0" step="0.1" class="r-adu" placeholder="—" /></label>
+    <label class="cell correct"><span class="cap">Correct kind<span class="capk"> ប្រភេទត្រឹមត្រូវ</span></span><input type="checkbox" class="chk r-correct" checked title="Correct kind available" /></label>
+    <button class="del-row" title="Remove item" aria-label="Remove item">×</button>
+    <div class="row-status"></div>
+  </div>`;
+}
+function renderItemRows(cat){
+  $('#item-rows').innerHTML = itemsForCategory(cat).map(itemRowHTML).join('');
+  bindRowEvents();
+  refreshRowStatuses();
+}
+function bindRowEvents(){
+  $$('#item-rows .del-row').forEach(b=> b.onclick = e=> e.target.closest('.item-row').remove());
+  $$('#item-rows input.r-closing, #item-rows input.r-min').forEach(inp=> inp.oninput = refreshRowStatuses);
+}
+function refreshRowStatuses(){
+  $$('#item-rows .item-row').forEach(row=>{
+    const c=row.querySelector('.r-closing').value, m=row.querySelector('.r-min').value;
+    const st = c===''?'' : statusOf(c,m);
+    const el=row.querySelector('.row-status');
+    if(!st){ el.textContent=''; return; }
+    const cls = st==='Stockout'?'red':st==='Low'?'amber':'green';
+    el.innerHTML = `<span class="pill ${cls}">${st}</span>`;
+  });
+}
+$('#add-item').onclick = ()=>{
+  const cat = $('#f-cat').value;
+  const remaining = itemsForCategory(cat);
+  $('#item-rows').insertAdjacentHTML('beforeend', itemRowHTML(remaining[0]||{en:'',km:'',unit:''}));
+  bindRowEvents(); refreshRowStatuses();
+};
+$('#reset-items').onclick = ()=> renderItemRows($('#f-cat').value);
+$('#f-cat').onchange = ()=> renderItemRows($('#f-cat').value);
+
+$('#save-session').onclick = async ()=>{
+  const date=$('#f-date').value, loc=$('#f-loc').value, cat=$('#f-cat').value, by=$('#f-by').value.trim();
+  if(!date||!loc||!cat||!by){ toast('Fill date, point of use, category and recorder name.', 'err'); return; }
+  const rows = $$('#item-rows .item-row');
+  const records=[];
+  rows.forEach(row=>{
+    const en = row.dataset.en;
+    const closing = row.querySelector('.r-closing').value;
+    if(en==='' || closing==='') return; // skip blank
+    const min = row.querySelector('.r-min').value;
+    const adu = row.querySelector('.r-adu').value;
+    const st = statusOf(closing,min);
+    records.push({
+      id: uid(), sessionId: '', checkDate:date, location:loc, useCategory:cat,
+      ppeItem:en, unit:row.dataset.unit,
+      closingBalance:closing, received:row.querySelector('.r-received').value||'',
+      minLevel:min||'', avgDailyUse:adu||'', daysRemaining:String(daysLeft(closing,adu)),
+      status:st, stockoutOccurred: st==='Stockout'?'Yes':'No',
+      correctKind: row.querySelector('.r-correct').checked?'Yes':'No',
+      recordedBy:by, remark:$('#f-remark').value.trim()
+    });
+  });
+  if(!records.length){ toast('Enter current stock for at least one item.', 'err'); return; }
+  const sid = uid();
+  records.forEach(r=> r.sessionId=sid);
+
+  // optimistic: cache + outbox, update UI immediately
+  const btn=$('#save-session'); btn.disabled=true; btn.textContent='Saving…';
+  records.forEach(r=>{
+    RECORDS.push(Object.assign({}, r));
+    Outbox.add(Object.assign({_localId:uid()}, r));
+  });
+  saveCache(); updateOutboxNote(); renderAll();
+  toast(records.length+' item(s) saved.', 'ok');
+
+  await flushOutbox();
+  await fetchRecords(); renderAll();
+  btn.disabled=false; btn.textContent='Save stock check';
+  // reset stock inputs for next session, keep header
+  $$('#item-rows .r-closing, #item-rows .r-received').forEach(i=>i.value='');
+  $('#f-remark').value=''; refreshRowStatuses();
+};
+
+/* ============================================================
+   TAB 2 — dashboard
+   ============================================================ */
+function latestPerKey(records){
+  // key = location||item ; keep most recent by checkDate then any order
+  const map={};
+  records.forEach(r=>{
+    const k = r.location+'||'+r.ppeItem+'||'+r.useCategory;
+    const prev=map[k];
+    if(!prev || (r.checkDate||'') >= (prev.checkDate||'')) map[k]=r;
+  });
+  return Object.values(map);
+}
+
+function renderKPIs(){
+  const latest = latestPerKey(RECORDS);
+  const locs = new Set(RECORDS.map(r=>r.location)).size;
+  const outNow = latest.filter(r=>r.status==='Stockout').length;
+  const lowNow = latest.filter(r=>r.status==='Low').length;
+  const breaks = RECORDS.filter(r=>r.stockoutOccurred==='Yes').length;
+  const wrongKind = latest.filter(r=>r.correctKind==='No').length;
+  const kpis=[
+    {n:RECORDS.length, l:'Stock-check records', c:'info'},
+    {n:locs, l:'Points of use monitored', c:'info'},
+    {n:outNow, l:'Items out of stock now', c: outNow?'bad':'good'},
+    {n:lowNow, l:'Items at reorder level', c: lowNow?'warn':'good'},
+    {n:breaks, l:'Continuity breaks logged', c: breaks?'bad':'good'},
+    {n:wrongKind, l:'Correct-kind issues', c: wrongKind?'purple':'good'}
+  ];
+  $('#kpis').innerHTML = kpis.map(k=>`<div class="kpi ${k.c}"><div class="n">${k.n}</div><div class="l">${k.l}</div></div>`).join('');
+}
+
+function renderBoard(){
+  const latest = latestPerKey(RECORDS);
+  const domDot={Clinical:'var(--primary)',Waste:'var(--amber)',Cleaning:'var(--green)'};
+  const html = ['Clinical','Waste','Cleaning'].map(cat=>{
+    const essItems = PPE_ITEMS.filter(p=>p.ess.includes(cat));
+    let worst='green';
+    const rows = essItems.map(it=>{
+      // worst status of this item across all points of use in this category
+      const recs = latest.filter(r=>r.useCategory===cat && r.ppeItem===it.en);
+      let cls='grey', label='No data';
+      if(recs.length){
+        if(recs.some(r=>r.status==='Stockout')){ cls='red'; label='Out'; worst='red'; }
+        else if(recs.some(r=>r.status==='Low')){ cls='amber'; label='Low'; if(worst!=='red') worst='amber'; }
+        else { cls='green'; label='In stock'; }
+      } else { if(worst==='green') worst='grey'; }
+      return `<div class="cov-item"><div class="nm"><b>${esc(it.en)}</b> <span class="k">${esc(it.km)}</span></div><span class="pill ${cls}">${label}</span></div>`;
+    }).join('');
+    const verdict = worst==='red'?['Break','red']:worst==='amber'?['At risk','amber']:worst==='grey'?['Not assessed','grey']:['Continuous','green'];
+    return `<div class="dom">
+      <div class="dom-head"><span class="dot" style="background:${domDot[cat]}"></span>
+        <h3>${CAT_LABEL[cat]}<span class="k">${CAT_KM[cat]}</span></h3>
+        <span class="dom-verdict pill ${verdict[1]}">${verdict[0]}</span></div>
+      <div class="dom-body">${rows||'<p class="small muted" style="padding:8px">No essential items.</p>'}</div>
+    </div>`;
+  }).join('');
+  $('#board').innerHTML = html;
+}
+
+function renderActiveShort(){
+  const latest = latestPerKey(RECORDS).filter(r=>r.status!=='Adequate');
+  latest.sort((a,b)=> (a.status==='Stockout'?0:1)-(b.status==='Stockout'?0:1));
+  if(!latest.length){ $('#active-short').innerHTML = emptyBox('All monitored points of use are above their reorder level.'); return; }
+  $('#active-short').innerHTML = tableFrom(
+    ['Point of use','Category','PPE item','Stock','Min','Days left','Status'],
+    latest.map(r=>[
+      esc(r.location), CAT_LABEL[r.useCategory]||r.useCategory, esc(r.ppeItem),
+      numCell(r.closingBalance), numCell(r.minLevel), numCell(r.daysRemaining),
+      stBadge(r.status)
+    ])
+  );
+}
+
+function renderBreakLog(){
+  const brk = RECORDS.filter(r=>r.stockoutOccurred==='Yes')
+    .sort((a,b)=>(b.checkDate||'').localeCompare(a.checkDate||''));
+  if(!brk.length){ $('#break-log').innerHTML = emptyBox('No stockouts recorded — continuity has held so far.'); return; }
+  $('#break-log').innerHTML = tableFrom(
+    ['Date','Point of use','Category','PPE item','Correct kind','Recorded by','Remark'],
+    brk.map(r=>[
+      esc(r.checkDate), esc(r.location), CAT_LABEL[r.useCategory]||r.useCategory,
+      esc(r.ppeItem), r.correctKind==='No'?'<span class="pill red">No</span>':'Yes',
+      esc(r.recordedBy), esc(r.remark||'—')
+    ])
+  );
+}
+
+/* trend chart */
+let trendChart=null;
+function renderTrendControls(){
+  const locs=[...new Set(RECORDS.map(r=>r.location))].sort();
+  const items=[...new Set(RECORDS.map(r=>r.ppeItem))].sort();
+  fillSelect($('#tr-loc'), locs, locs.length?'':'No data');
+  fillSelect($('#tr-item'), items, items.length?'':'No data');
+  $('#tr-loc').onchange = drawTrend; $('#tr-item').onchange = drawTrend;
+  drawTrend();
+}
+function drawTrend(){
+  if(typeof Chart==='undefined') return;
+  const loc=$('#tr-loc').value, item=$('#tr-item').value;
+  const series = RECORDS.filter(r=>r.location===loc && r.ppeItem===item)
+    .sort((a,b)=>(a.checkDate||'').localeCompare(b.checkDate||''));
+  const labels = series.map(r=>r.checkDate);
+  const data = series.map(r=>num(r.closingBalance));
+  const minLine = series.map(r=>num(r.minLevel));
+  const ctx=$('#trend-chart').getContext('2d');
+  if(trendChart) trendChart.destroy();
+  trendChart = new Chart(ctx,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Stock on hand',data,borderColor:'#0f766e',backgroundColor:'rgba(15,118,110,.1)',fill:true,tension:.25,pointRadius:3},
+      {label:'Reorder level',data:minLine,borderColor:'#b45309',borderDash:[6,4],pointRadius:0,fill:false}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{position:'bottom',labels:{boxWidth:14}}},
+      scales:{y:{beginAtZero:true,title:{display:true,text:'Quantity'}}}}
+  });
+}
+
+/* ============================================================
+   TAB 3 — records table
+   ============================================================ */
+function currentFilterSet(){
+  const loc=$('#rf-loc').value, cat=$('#rf-cat').value, st=$('#rf-st').value,
+        from=$('#rf-from').value, to=$('#rf-to').value;
+  return RECORDS.filter(r=>{
+    if(loc && r.location!==loc) return false;
+    if(cat && r.useCategory!==cat) return false;
+    if(st && r.status!==st) return false;
+    if(from && (r.checkDate||'')<from) return false;
+    if(to && (r.checkDate||'')>to) return false;
+    return true;
+  }).sort((a,b)=>(b.checkDate||'').localeCompare(a.checkDate||''));
+}
+function renderRecords(){
+  const locs=[...new Set(RECORDS.map(r=>r.location))].sort();
+  const cur=$('#rf-loc').value;
+  $('#rf-loc').innerHTML='<option value="">All</option>'+locs.map(l=>`<option ${l===cur?'selected':''}>${esc(l)}</option>`).join('');
+  const rows=currentFilterSet();
+  $('#rec-count').textContent = rows.length+' record(s) shown of '+RECORDS.length+' total.';
+  if(!rows.length){ $('#rec-body').innerHTML=`<tr><td colspan="11" class="empty">No records match these filters.</td></tr>`; return; }
+  $('#rec-body').innerHTML = rows.map(r=>`<tr>
+    <td>${esc(r.checkDate)}</td><td>${esc(r.location)}</td>
+    <td>${esc(CAT_LABEL[r.useCategory]||r.useCategory)}</td><td>${esc(r.ppeItem)}</td>
+    <td class="num">${esc(r.closingBalance)}</td><td class="num">${esc(r.minLevel||'—')}</td>
+    <td class="num">${esc(r.daysRemaining||'—')}</td><td>${stBadge(r.status)}</td>
+    <td>${r.correctKind==='No'?'<span class="pill red">No</span>':'Yes'}</td>
+    <td>${esc(r.recordedBy)}</td>
+    <td><button class="rowbtn danger" data-del="${esc(r.id)}">Delete</button></td>
+  </tr>`).join('');
+  $$('#rec-body [data-del]').forEach(b=> b.onclick=()=>deleteRecord(b.dataset.del));
+}
+['#rf-loc','#rf-cat','#rf-st','#rf-from','#rf-to'].forEach(s=> $(s).addEventListener('change', renderRecords));
+
+async function deleteRecord(id){
+  if(!confirm('Delete this record? This cannot be undone.')) return;
+  RECORDS = RECORDS.filter(r=>r.id!==id); saveCache(); renderAll();
+  try{ const res=await jsonp({action:'delete', id}); if(res&&res.ok) toast('Record deleted.','ok'); else toast('Removed locally; server sync pending.'); }
+  catch(e){ toast('Removed locally; will sync when online.'); }
+}
+
+/* ============================================================
+   shared render helpers
+   ============================================================ */
+function numCell(v){ return `<span class="num">${v==null||v===''?'—':esc(v)}</span>`; }
+function stBadge(s){ return `<span class="st ${esc(s)}">${esc(s)}</span>`; }
+function emptyBox(msg){
+  return `<div class="empty"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 7h16M4 12h16M4 17h10"/></svg><div>${esc(msg)}</div></div>`;
+}
+function tableFrom(headers, rows){
+  return `<div class="tbl-wrap"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+    <tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+}
+
+function renderAll(){
+  renderKPIs(); renderBoard(); renderActiveShort(); renderBreakLog();
+  renderTrendControls(); renderRecords();
+}
+
+/* ============================================================
+   EXPORTS
+   ============================================================ */
+$('#exp-xlsx').onclick = ()=>{
+  const rows = currentFilterSet();
+  if(!rows.length){ toast('Nothing to export with current filters.','err'); return; }
+  const data = rows.map(r=>({
+    'Check date':r.checkDate,'Point of use':r.location,'Use category':CAT_LABEL[r.useCategory]||r.useCategory,
+    'PPE item':r.ppeItem,'Unit':r.unit,'Stock on hand':r.closingBalance,'Received':r.received,
+    'Min / reorder level':r.minLevel,'Avg daily use':r.avgDailyUse,'Days of stock left':r.daysRemaining,
+    'Status':r.status,'Stockout (continuity break)':r.stockoutOccurred,'Correct kind available':r.correctKind,
+    'Recorded by':r.recordedBy,'Remark':r.remark
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'PPE continuity');
+  XLSX.writeFile(wb, 'KCPH_PPE_continuity_IPI10-ME5_'+todayISO()+'.xlsx');
+};
+
+$('#exp-pdf').onclick = ()=>{
+  const rows = currentFilterSet();
+  const latest = latestPerKey(RECORDS);
+  const outNow = latest.filter(r=>r.status==='Stockout').length;
+  const lowNow = latest.filter(r=>r.status==='Low').length;
+  const breaks = RECORDS.filter(r=>r.stockoutOccurred==='Yes').length;
+  const rep = $('#print-report');
+  rep.innerHTML = `
+    <div style="padding:14px 0 8px">
+      <h2 style="margin:0;font-family:Sora">PPE Supply Continuity Report</h2>
+      <div style="font-size:13px;color:#333">${CONFIG.HOSPITAL_EN} · ${CONFIG.HOSPITAL_KM}</div>
+      <div style="font-size:12px;color:#555;margin-top:4px">CHAS IPI.10 — Measurable Element 5 · continuous supply of the correct kind of PPE for clinical care, waste handling and cleaning.</div>
+      <div style="font-size:12px;color:#555">Generated ${new Date().toLocaleString()} · ${rows.length} records</div>
+    </div>
+    <div style="display:flex;gap:24px;font-size:13px;margin:8px 0 14px">
+      <div><b>${outNow}</b> out of stock now</div>
+      <div><b>${lowNow}</b> at reorder level</div>
+      <div><b>${breaks}</b> continuity breaks logged</div>
+    </div>
+    ${tableFrom(
+      ['Date','Point of use','Category','PPE item','Stock','Min','Days left','Status','Correct kind','By'],
+      rows.map(r=>[esc(r.checkDate),esc(r.location),esc(CAT_LABEL[r.useCategory]||r.useCategory),esc(r.ppeItem),
+        esc(r.closingBalance),esc(r.minLevel||'—'),esc(r.daysRemaining||'—'),esc(r.status),esc(r.correctKind),esc(r.recordedBy)])
+    )}
+    <p style="font-size:11px;color:#777;margin-top:16px">Reviewed by IPC focal point: ____________________  ·  Date: ____________  ·  Signature: ____________</p>`;
+  window.print();
+};
+
+$('#refresh').onclick = async ()=>{ await fetchRecords(); renderAll(); toast('Data refreshed.','ok'); };
+
+/* ============================================================
+   tabs + init
+   ============================================================ */
+$$('.tab').forEach(t=> t.onclick = ()=>{
+  $$('.tab').forEach(x=>x.classList.remove('active'));
+  $$('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active'); $('#tab-'+t.dataset.tab).classList.add('active');
+});
+
+function init(){
+  $('#f-date').value = todayISO();
+  fillSelect($('#f-loc'), LOCATIONS);
+  renderItemRows('Clinical');
+  loadCache(); updateOutboxNote(); renderAll();
+  fetchRecords().then(()=>renderAll());
+  window.addEventListener('online', ()=>{ setConn('online'); flushOutbox().then(()=>fetchRecords()).then(renderAll); });
+  window.addEventListener('offline', ()=> setConn('offline'));
+}
+init();
+</script>
+</body>
+</html>
